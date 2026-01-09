@@ -1,0 +1,63 @@
+---
+title: "Example dashboard with dynamic data"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    source_code: embed
+    theme: yeti
+runtime: shiny  # Make this use a Shiny backend
+---
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(flexdashboard)
+library(plotly)
+library(readr)
+```
+
+```{r get-data, message=FALSE, include=FALSE}
+remote_data <- read_csv("Datos_Ejemplo.csv")
+```
+
+## Row
+
+### Categories {.value-box}
+
+```{r}
+# Find the number of unique categories
+n_categories <- remote_data %>% distinct(Category) %>% nrow()
+
+# Put valueBox() inside renderValueBox({})
+renderValueBox({
+  valueBox(value = n_categories, icon = "fas fa-users")
+})
+```
+
+### Total {.value-box}
+
+```{r}
+# Get a total of all the counts
+total <- sum(remote_data$Count)
+
+# Put valueBox() inside renderValueBox({})
+renderValueBox({
+  valueBox(value = total, icon = "fas fa-cubes")
+})
+```
+
+## Row
+
+###
+
+```{r}
+# Make a basic column plot
+library(plotly)
+
+plot_ly(remote_data,
+        x = ~Category,
+        y = ~Count,
+        type = "bar",
+        text = ~paste("Categoría:", Category, "<br>Count:", Count),
+        hoverinfo = "text")
+```

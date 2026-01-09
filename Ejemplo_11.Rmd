@@ -1,0 +1,81 @@
+---
+title: "Value box & Gauges"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+---
+
+```{r}
+library(DT)
+library(flexdashboard)
+```
+
+
+Row
+-----------------------------------------------------------------------
+
+### Articles per Day
+
+```{r}
+articles <- 123
+valueBox(articles, icon = "fa-pencil")
+```
+
+### Comments per Day
+
+```{r}
+comments <- 257
+valueBox(comments, icon = "fa-comments", color = "danger")
+```
+
+### Spam per Day
+
+```{r}
+spam <- 95
+valueBox(spam, 
+         icon = "fa-trash",
+         color = ifelse(spam > 10, "warning", "primary"))
+```
+
+
+Row 
+-----------------------------------------------------------------------
+
+### Contact Rate
+
+```{r}
+rate <- 91
+gauge(rate, min = 0, max = 100, symbol = '%', gaugeSectors(
+  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
+))
+```
+
+### Average Rating 
+
+```{r}
+rating <- 37.4
+gauge(rating, min = 0, max = 50, gaugeSectors(
+  success = c(41, 50), warning = c(21, 40), danger = c(0, 20)
+))
+```
+
+### Cancellations
+
+```{r}
+cancellations <- 7
+gauge(cancellations, min = 0, max = 10, gaugeSectors(
+  success = c(0, 2), warning = c(3, 6), danger = c(7, 10)
+))
+```
+
+Row
+-------------------------------------
+    
+### Tabla con DT
+    
+```{r}
+DT::datatable(mtcars, options = list(
+  bPaginate = FALSE
+))
+```
+    

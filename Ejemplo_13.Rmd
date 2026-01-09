@@ -1,0 +1,44 @@
+---
+title: "Page Orientation"
+output: flexdashboard::flex_dashboard
+---
+
+Page 1
+===================================== 
+
+## Column 1
+
+### Chart 1.1
+    
+```{r}
+```
+
+## column 2
+
+### Chart 1.2
+
+```{r}
+```
+   
+
+Page 2 {data-orientation=rows}
+=====================================
+
+## row 1
+
+### Chart 2.1
+    
+```{r}
+```
+
+## row 2
+
+### Chart 2.2
+
+```{r}
+```
+
+### Chart 2.3
+
+```{r}
+```

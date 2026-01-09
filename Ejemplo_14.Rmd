@@ -1,0 +1,73 @@
+---
+title: "Page Navigation Menus"
+output: flexdashboard::flex_dashboard
+---
+
+Page 1 {data-navmenu="Menu A" data-navmenu-icon="fa-bookmark"}
+=====================================
+
+## column 1
+
+### Chart 1.1
+    
+```{r}
+```
+    
+### Chart 1.2
+
+```{r}
+```
+
+## column 2
+
+### Chart 2.1
+    
+```{r}
+```
+    
+### Chart 2.2
+
+```{r}
+```
+
+
+Page 2 {data-navmenu="Menu A"}
+=====================================  
+
+
+Page 3 {data-navmenu="Menu B" data-navmenu="fa-cog"}
+=====================================
+
+
+Page 4 {data-navmenu="Menu B"}
+=====================================  
+
+## column 1
+
+### Chart 1.1
+    
+```{r}
+```
+    
+### Chart 1.2
+
+```{r}
+```
+
+### Chart 1.3
+
+```{r}
+```
+
+## column 2
+
+### Chart 2.1
+    
+```{r}
+```
+    
+### Chart 2.2
+
+```{r}
+```
+

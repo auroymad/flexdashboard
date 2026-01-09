@@ -1,0 +1,24 @@
+---
+title: "Universidad de Alicante"
+output: 
+  flexdashboard::flex_dashboard:
+    logo: genaeio2.png    # logo en barra navegación
+    favicon: genaeio2.png  # logo en navegador
+    social: menu  # menú social links
+    source_code: embed  # añadir código
+---
+
+### Universidad de Alicante
+
+```{r}
+library(leaflet)
+
+leaflet() %>%
+  addTiles() %>%
+  setView(lng = -0.5125, lat = 38.3823, zoom = 18) %>%
+  addMarkers(lng = -0.5125, lat = 38.3823,
+             popup = "Edificio Germán Bernàcer - Universidad de Alicante")
+
+
+```
+

@@ -1,0 +1,32 @@
+---
+title: "Tabular Data"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+---
+
+```{r}
+library(DT)
+```
+
+
+Row
+-------------------------------------
+
+### Tabla simple
+
+```{r}
+knitr::kable(mtcars)
+```
+
+Row
+-------------------------------------
+    
+### Tabla con DT
+    
+```{r}
+DT::datatable(mtcars, options = list(
+  bPaginate = FALSE
+))
+```
+    

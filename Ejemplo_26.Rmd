@@ -1,0 +1,74 @@
+---
+title: "Example dashboard with dynamic data from Excel"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    source_code: embed
+    theme: yeti
+runtime: shiny  # Make this use a Shiny backend
+---
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(flexdashboard)
+library(plotly)
+library(readxl)
+library(shiny)
+```
+
+```{r get-data, message=FALSE, include=FALSE}
+# Usamos reactiveFileReader para que el dashboard se refresque
+# cada vez que el archivo Excel cambie y se guarde.
+remote_data <- reactiveFileReader(
+  intervalMillis = 5000,   # revisa cada 5 segundos
+  session = NULL,
+  filePath = "Datos_Ejemplo.xlsx",
+  readFunc = readxl::read_excel
+)
+
+```
+
+## Row
+
+### Categories {.value-box}
+
+```{r}
+# Put valueBox() inside renderValueBox({})
+renderValueBox({
+  df <- remote_data()
+  n_categories <- df %>% distinct(Category) %>% nrow()
+  valueBox(value = n_categories, icon = "fas fa-users")
+})
+
+```
+
+### Total {.value-box}
+
+```{r}
+# Put valueBox() inside renderValueBox({})
+renderValueBox({
+  df <- remote_data()
+  total <- sum(df$Count)
+  valueBox(value = total, icon = "fas fa-cubes")
+})
+
+```
+
+## Row
+
+###
+
+```{r}
+# Make a basic column plot
+renderPlotly({
+  df <- remote_data()
+  plot_ly(df,
+          x = ~Category,
+          y = ~Count,
+          type = "bar",
+          text = ~paste("Categoría:", Category, "<br>Count:", Count),
+          hoverinfo = "text")
+})
+
+```

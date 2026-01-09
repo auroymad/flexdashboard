@@ -1,0 +1,30 @@
+---
+title: "Multiple Pages"
+output: flexdashboard::flex_dashboard
+---
+
+Page 1
+===================================== 
+    
+### Chart 1.1
+    
+```{r}
+```
+    
+### Chart 1.2
+
+```{r}
+```
+   
+Page 2
+=====================================     
+
+### Chart 2.1
+    
+```{r}
+```
+    
+### Chart 2.2
+
+```{r}
+```
