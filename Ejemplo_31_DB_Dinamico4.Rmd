@@ -1,0 +1,499 @@
+---
+title: "Dashboard de Logs (Dinámico)"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    source_code: embed
+    runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(readxl)
+library(tidyverse)
+library(lubridate)
+library(shiny)
+library(plotly)
+```
+
+
+```{r}
+
+datos<- read_excel("logs_curso.xlsx")
+
+datos<- datos %>%
+  mutate(
+    Hora_dt = as.POSIXct(Hora, format = "%d/%m/%y, %H:%M:%S", tz = "Europe/Madrid"),
+    Fecha   = as.Date(Hora_dt),
+    Hour    = hour(Hora_dt),
+    # Día de la semana con abreviaturas personalizadas
+    Weekday_num = wday(Fecha, week_start = 1),  # lunes=1, domingo=7
+    Weekday = factor(
+      Weekday_num,
+      levels = 1:7,
+      labels = c("Lun","Mar","Mie","Jue","Vie","Sab","Dom"),
+      ordered = TRUE
+    ),
+    Origen = factor(Origen)
+  )
+
+
+datos <- datos %>%
+  rename(
+    hora            = Hora,
+    usuario         = `Nombre completo del usuario`,
+    usuario_afectado= `Usuario afectado`,
+    contexto        = `Contexto del evento`,
+    componente      = Componente,
+    evento          = `Nombre evento`,
+    descripcion     = Descripción,
+    origen          = Origen,
+    ip              = `Dirección IP`
+  )
+
+
+# Extraer nombres únicos de los alumnos
+alumnos <- data.frame(
+  usuario = unique(datos$usuario)
+)
+
+
+# Máximo de clics por día de la semana entre todos los alumnos
+max_weekday <- datos %>%
+  count(usuario, Weekday) %>%
+  summarise(max_val = max(n)) %>%
+  pull(max_val)
+
+# Máximo de clics por hora entre todos los alumnos
+max_hour <- datos %>%
+  count(usuario, Hour) %>%
+  summarise(max_val = max(n)) %>%
+  pull(max_val)
+
+```
+
+
+```{r}
+metrics_global <- reactive({
+  start <- input$rango_fechas[1]
+  end   <- input$rango_fechas[2]
+  
+  # Días posibles en el intervalo según los días seleccionados
+  all_dates <- tibble(Fecha = seq.Date(start, end, by = "day")) %>%
+    mutate(idx = lubridate::wday(Fecha, week_start = 1),
+           Weekday = c("Lun","Mar","Mie","Jue","Vie","Sab","Dom")[idx]) %>%
+    filter(Weekday %in% input$dias_semana)
+  max_dias <- nrow(all_dates)
+  if (max_dias == 0) max_dias <- 1
+  
+  # Cálculos por alumno en el intervalo
+  dias_por_alumno <- datos %>%
+    filter(Fecha >= start, Fecha <= end,
+           Weekday %in% input$dias_semana) %>%
+    group_by(usuario) %>%
+    summarise(dias_distintos = n_distinct(Fecha),
+              clics = n(),
+              .groups = "drop") %>%
+    mutate(
+      pct_dias = dias_distintos / max_dias * 100,
+      clics_por_dia = clics / pmax(dias_distintos, 1)
+    )
+  
+  # Máximos relativos
+  max_clics <- max(dias_por_alumno$clics, na.rm = TRUE)
+  max_clics_por_dia <- max(dias_por_alumno$clics_por_dia, na.rm = TRUE)
+  
+  dias_por_alumno <- dias_por_alumno %>%
+    mutate(
+      pct_clics = clics / max_clics * 100,
+      pct_clics_por_dia = clics_por_dia / max_clics_por_dia * 100
+    )
+  
+  list(
+    dias_por_alumno = dias_por_alumno,
+    max_clics = max_clics,
+    max_clics_por_dia = max_clics_por_dia
+  )
+})
+
+```
+
+Controles {.sidebar}
+====================================
+
+```{r}
+selectInput("alumno", "Selecciona un alumno:",
+            choices = sort(unique(datos$usuario)),
+            selected = unique(datos$usuario)[1])
+
+dateRangeInput("rango_fechas", "Selecciona rango de fechas:",
+               start = as.Date("2025-09-01"),
+               end   = Sys.Date(),
+               min   = as.Date("2025-09-01"),
+               max   = Sys.Date())
+
+checkboxGroupInput("dias_semana", "Filtrar por días de la semana:",
+                   choices = c("Lun","Mar","Mie","Jue","Vie","Sab","Dom"),
+                   selected = c("Lun","Mar","Mie","Jue","Vie","Sab","Dom"))
+
+```
+
+
+```{r}
+# Filtrar métricas para el alumno seleccionado
+metrics <- reactive({
+  datos_filtrados() %>%
+    summarise(
+      dias_distintos = n_distinct(Fecha),
+      clics = n()
+    ) %>%
+    mutate(
+      pct_dias = dias_distintos / as.integer(input$rango_fechas[2] - input$rango_fechas[1] + 1) * 100,
+      clics_por_dia = clics / dias_distintos
+    )
+})
+
+# Filtrar datos para gráficos
+datos_filtrados <- reactive({
+  datos %>%
+    filter(usuario == input$alumno,
+           Fecha >= input$rango_fechas[1],
+           Fecha <= input$rango_fechas[2],
+           Weekday %in% input$dias_semana)
+})
+
+```
+
+
+Gráficos
+=========================
+
+row
+-----------------------------------------------------------------------
+
+### Días distintos de conexión {.value-box}
+
+```{r}
+renderValueBox({
+  # Recalcular métricas globales en el intervalo y días seleccionados
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  
+  # Calcular cuartiles dinámicos
+  qs <- quantile(dias_por_alumno$dias_distintos,
+                 probs = c(0.25, 0.5, 0.75),
+                 na.rm = TRUE)
+  
+  # Valor del alumno seleccionado
+  valor <- dias_por_alumno %>%
+    filter(usuario == input$alumno) %>%
+    pull(dias_distintos)
+  
+  # Escala de colores por cuartiles
+  color <- if (valor < qs[1]) {
+    "danger"   # rojo
+  } else if (valor < qs[2]) {
+    "warning"  # naranja
+  } else if (valor < qs[3]) {
+    "info"     # azul/celeste
+  } else {
+    "success"  # verde
+  }
+  
+  valueBox(
+    value = valor,
+    caption = "Días distintos de conexión",
+    icon = "fa-calendar",
+    color = color
+  )
+})
+
+
+```
+
+
+### % de días distintos {.gauge}
+```{r}
+renderGauge({
+  valor <- metrics_global()$dias_por_alumno %>%
+    filter(usuario == input$alumno) %>%
+    pull(pct_dias)
+  
+  max_val <- max(metrics_global()$dias_por_alumno$pct_dias, na.rm = TRUE)
+  
+  gauge(
+    value = valor,
+    min = 0, max = 100,
+    symbol = "%",
+    label = "% sobre máximo",
+    gaugeSectors(
+      success = c(max_val*0.75, max_val),
+      warning = c(max_val*0.5, max_val*0.75),
+      danger  = c(0, max_val*0.5)
+    )
+  )
+})
+
+```
+
+### Número de clics {.value-box}
+```{r}
+renderValueBox({
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  
+  # Valor del alumno
+  valor <- dias_por_alumno %>%
+    filter(usuario == input$alumno) %>%
+    pull(clics)
+  
+  # Cuartiles dinámicos sobre todos los alumnos en el intervalo
+  qs <- quantile(dias_por_alumno$clics, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
+  
+  # Escala de colores
+  color <- if (valor < qs[1]) {
+    "danger"
+  } else if (valor < qs[2]) {
+    "warning"
+  } else if (valor < qs[3]) {
+    "info"
+  } else {
+    "success"
+  }
+  
+  valueBox(
+    value = valor,
+    caption = "Número de clics",
+    icon = "fa-mouse-pointer",
+    color = color
+  )
+})
+
+```
+
+### % de clics {.gauge}
+
+```{r}
+renderGauge({
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  
+  valor <- dias_por_alumno %>%
+    filter(usuario == input$alumno) %>%
+    pull(pct_clics)
+  
+  max_val <- max(dias_por_alumno$pct_clics, na.rm = TRUE)
+  
+  gauge(
+    value = valor,
+    min = 0, max = 100,
+    label = "% sobre máximo",
+    gaugeSectors(
+      success = c(max_val*0.75, max_val),
+      warning = c(max_val*0.5, max_val*0.75),
+      danger  = c(0, max_val*0.5)
+    )
+  )
+})
+
+```
+
+### Promedio clics/día {.value-box}
+
+```{r}
+renderValueBox({
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  
+  valor <- dias_por_alumno %>%
+    filter(usuario == input$alumno) %>%
+    pull(clics_por_dia)
+  
+  qs <- quantile(dias_por_alumno$clics_por_dia, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
+  
+  color <- if (valor < qs[1]) {
+    "danger"
+  } else if (valor < qs[2]) {
+    "warning"
+  } else if (valor < qs[3]) {
+    "info"
+  } else {
+    "success"
+  }
+  
+  valueBox(
+    value = round(valor, 1),
+    caption = "Promedio clics por día",
+    icon = "fa-chart-line",
+    color = color
+  )
+})
+
+```
+
+
+### % promedio clics/día {.gauge}
+```{r}
+renderGauge({
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  
+  valor <- dias_por_alumno %>%
+    filter(usuario == input$alumno) %>%
+    pull(pct_clics_por_dia)
+  
+  max_val <- max(dias_por_alumno$pct_clics_por_dia, na.rm = TRUE)
+  
+  gauge(
+    value = valor,
+    min = 0, max = 100,
+    label = "% sobre máximo",
+    gaugeSectors(
+      success = c(max_val*0.75, max_val),
+      warning = c(max_val*0.5, max_val*0.75),
+      danger  = c(0, max_val*0.5)
+    )
+  )
+})
+
+```
+
+
+
+
+row
+-----------------------------------------------------------------------
+
+### Clics por día de la semana  {.full}
+
+```{r}
+renderPlot({
+  ggplot(datos_filtrados(), aes(x = Weekday)) +
+    geom_bar(fill = "steelblue") +
+    scale_y_continuous(limits = c(0, max_weekday)) +
+    theme_minimal() +
+    labs(title = paste("Clics por día de la semana -", input$alumno),
+         x = "Día", y = "Número de clics")
+})
+```
+
+### Mapa de Calor{.full}
+
+```{r}
+
+renderPlotly({
+  grid <- expand.grid(
+    Weekday = factor(c("Lun","Mar","Mie","Jue","Vie","Sab","Dom"),
+                     levels = c("Lun","Mar","Mie","Jue","Vie","Sab","Dom"),
+                     ordered = TRUE),
+    Hour = 0:23
+  )
+  
+  datos_heatmap <- datos_filtrados() %>%
+    count(Weekday, Hour)
+  
+  datos_heatmap <- grid %>%
+    left_join(datos_heatmap, by = c("Weekday","Hour")) %>%
+    mutate(n = replace_na(n, 0))
+  
+  plot_ly(
+    data = datos_heatmap,
+    x = ~Weekday,
+    y = ~Hour,
+    z = ~n,
+    type = "heatmap",
+    colors = colorRamp(c("white","darkgreen"))
+  ) %>%
+    layout(
+      title = paste("Mapa de calor -", input$alumno),
+      xaxis = list(title = "Día de la semana"),
+      yaxis = list(title = "Hora del día", dtick = 1)
+    )
+})
+
+
+```
+
+
+### Clics por hora {.chart}
+
+```{r}
+renderPlot({
+  ggplot(datos_filtrados(), aes(x = Hour)) +
+    geom_bar(fill = "darkorange") +
+    scale_x_continuous(breaks = 0:23) +
+    scale_y_continuous(limits = c(0, max_hour)) +
+    theme_minimal() +
+    labs(title = paste("Clics por hora -", input$alumno),
+         x = "Hora del día", y = "Número de clics")
+})
+
+```
+
+
+tablas
+==========================
+
+### Tabla resumen {.tabset}
+
+```{r}
+renderTable({
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  head(dias_por_alumno, 10)   # mostrar los 10 primeros alumnos
+})
+```
+
+
+### Tabla interactiva {.tabset}
+
+```{r}
+DT::renderDataTable({
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  
+  DT::datatable(
+    dias_por_alumno,
+    options = list(
+      pageLength = 10,
+      autoWidth = TRUE,
+      order = list(list(2, 'desc')) # ordenar por clics
+    )
+  )
+})
+```
+
+
+
+Actividad
+====================================
+
+row
+-----------------------------------------------------------------------
+
+### Gráfico de barras
+
+```{r}
+
+# Fechas de examen
+examenes <- as.Date(c("2025-09-15", "2025-10-13", "2025-10-29", "2025-11-17", "2025-11-26"))
+
+renderPlot({
+  
+  all_dates <- tibble(Fecha = seq.Date(input$rango_fechas[1], input$rango_fechas[2], by = "day"))
+  
+  clics_por_dia <- datos_filtrados() %>%
+    count(Fecha)
+  
+# Unir con todas las fechas y marcar Pruebas
+clics_por_dia <- all_dates %>%
+  left_join(clics_por_dia, by = "Fecha") %>%
+  mutate(n = replace_na(n, 0),
+         es_examen = if_else(Fecha %in% examenes, "Pruebas", "Normal"))
+
+# Gráfico con color según examen
+ggplot(clics_por_dia, aes(x = Fecha, y = n, fill = es_examen)) +
+  geom_col() +
+  scale_fill_manual(values = c("Normal" = "steelblue", "Pruebas" = "red")) +
+  theme_minimal() +
+  labs(title = "Número de clics por día",
+       x = "Fecha", y = "Número de clics", fill = "Tipo de día")
+
+})
+
+```
+
