@@ -1,9 +1,10 @@
 ---
-title: "Single Column (Scrolling)"
+title: "Single Column (Scrolling)"        # Título del dashboard
 output: 
-  flexdashboard::flex_dashboard:
-    vertical_layout: scroll
+  flexdashboard::flex_dashboard:          # Usamos flexdashboard
+    vertical_layout: scroll               # La columna hace scroll vertical
 ---
+
 
 ### Chart 1
     

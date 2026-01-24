@@ -1,30 +1,33 @@
 ---
-title: "Figure Sizes"
+title: "Figure Sizes"       # Título del dashboard
 output: 
   flexdashboard::flex_dashboard:
-    orientation: rows
+    orientation: rows       # Organización por filas
 ---
 
-Row
+Row           # Primera fila del dashboard
 -------------------------------------
 
-### Chart 1
+### Chart 1  (tamaño gráfico 10x7)
 
 ```{r, fig.width=10, fig.height=7}
+# Gráfico grande (10x7) # fig.width y fig.height controlan el tamaño en pulgadas
 plot(cars)
 ```
 
-Row
+Row           # Segunda fila del dashboard
 -------------------------------------
     
-### Chart 2
+### Chart 2 (tamaño gráfico 5x5)
     
 ```{r, fig.width=5, fig.height=5}
+# Gráfico cuadrado pequeño (5x5)
 plot(pressure)
 ```
     
-### Chart 3
+### Chart 3  (tamaño gráfico 5x5)
 
 ```{r, fig.width=5, fig.height=5}
+# Gráfico cuadrado pequeño (5x5)
 plot(airmiles)
 ```

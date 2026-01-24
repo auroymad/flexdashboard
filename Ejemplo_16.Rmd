@@ -1,7 +1,8 @@
 ---
-title: "Storyboard Page"
-output: flexdashboard::flex_dashboard
+title: "Storyboard Page"                     # Título del dashboard
+output: flexdashboard::flex_dashboard        # Salida flexdashboard
 ---
+
 
 Analysis {.storyboard}
 =========================================
@@ -9,11 +10,15 @@ Analysis {.storyboard}
 ### Frame 1
 
 ```{r}
+# Primer frame del storyboard
+
 ```
 
 ### Frame 2
 
 ```{r}
+# Segundo frame del storyboard
+
 ```
 
 Details
@@ -21,3 +26,9 @@ Details
 
 Column
 -----------------------------------------
+
+```{r}
+# Contenido de la página Details
+
+```
+

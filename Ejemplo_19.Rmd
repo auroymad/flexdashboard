@@ -2,5 +2,5 @@
 title: "Source Code"
 output: 
   flexdashboard::flex_dashboard:
-    source_code: embed
+    source_code: embed   # mostrar el código fuente
 ---

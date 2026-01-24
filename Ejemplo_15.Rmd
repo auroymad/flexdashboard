@@ -1,21 +1,31 @@
 ---
-title: "Storyboard"
+title: "Storyboard"                               # Título del dashboard
 output: 
   flexdashboard::flex_dashboard:
-    storyboard: true
+    storyboard: true                              # Activa el modo storyboard
 ---
+
 
 ### Frame 1
 
 ```{r}
+# Primer fotograma del storyboard
+# Cada frame funciona como una "diapositiva" con navegación lateral
+
 ```
 
 ### Frame 2
 
 ```{r}
+# Segundo fotograma
+# Ideal para mostrar evolución, pasos o comparaciones
+
 ```
 
 ### Frame 3
 
 ```{r}
+# Tercer fotograma
+# Puedes incluir gráficos, tablas, texto o imágenes
+
 ```

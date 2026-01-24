@@ -1,9 +1,10 @@
 ---
-title: "Tabset Column"
-output: flexdashboard::flex_dashboard
+title: "Tabset Column"                    # Título del dashboard
+output: flexdashboard::flex_dashboard     # Salida en formato flexdashboard
 ---
+
     
-Column 
+Column        # Primera columna (sin pestañas)
 -------------------------------------
     
 ### Chart 1
@@ -11,7 +12,7 @@ Column
 ```{r}
 ```
    
-Column {.tabset}
+Column {.tabset}        # Segunda columna con pestañas (tabs)
 -------------------------------------
    
 ### Chart 2

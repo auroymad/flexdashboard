@@ -1,32 +1,35 @@
 ---
-title: "Tabular Data"
+title: "Tabular Data"       # Título del dashboard
 output: 
   flexdashboard::flex_dashboard:
-    orientation: rows
+    orientation: rows       # Organización por filas
 ---
 
 ```{r}
-library(DT)
+library(DT) # Cargamos DT para tablas interactivas
 ```
 
 
-Row
+Row       # Primera fila del dashboard
 -------------------------------------
 
 ### Tabla simple
 
 ```{r}
+# Tabla estática con kable (knitr) 
+# Ideal para informes o tablas sencillas sin interacción
 knitr::kable(mtcars)
 ```
 
-Row
+Row       # Segunda fila del dashboard
 -------------------------------------
     
 ### Tabla con DT
     
 ```{r}
+# Tabla interactiva: ordenación, búsqueda, scroll, etc.
 DT::datatable(mtcars, options = list(
-  bPaginate = FALSE
+  bPaginate = FALSE  # Desactiva paginación (muestra todo)
 ))
 ```
     

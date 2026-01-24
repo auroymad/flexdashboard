@@ -1,32 +1,33 @@
 ---
-title: "Example dashboard with dynamic data from Excel"
+title: "Example dashboard with dynamic data from Excel"   # Título del dashboard
 output:
   flexdashboard::flex_dashboard:
-    orientation: rows
-    source_code: embed
-    theme: yeti
-runtime: shiny  # Make this use a Shiny backend
+    orientation: rows                                     # Distribución por filas
+    source_code: embed                                    # Botón para ver el código fuente
+    theme: yeti                                           # Tema visual (Bootswatch)
+runtime: shiny                                            # Backend reactivo con Shiny
 ---
 
 
+
 ```{r setup, include=FALSE}
-library(tidyverse)
-library(flexdashboard)
-library(plotly)
-library(readxl)
-library(shiny)
+library(tidyverse)                                        # Manipulación de datos
+library(flexdashboard)                                    # Componentes del dashboard
+library(plotly)                                           # Gráficos interactivos
+library(readxl)                                           # Lectura de Excel
+library(shiny)                                            # Reactividad
+
 ```
 
 ```{r get-data, message=FALSE, include=FALSE}
-# Usamos reactiveFileReader para que el dashboard se refresque
-# cada vez que el archivo Excel cambie y se guarde.
+# reactiveFileReader permite que el dashboard se actualice automáticamente
+# cuando el archivo Excel cambia y se guarda.
 remote_data <- reactiveFileReader(
-  intervalMillis = 5000,   # revisa cada 5 segundos
-  session = NULL,
-  filePath = "Datos_Ejemplo.xlsx",
-  readFunc = readxl::read_excel
+  intervalMillis = 5000,   # Revisa el archivo cada 5 segundos
+  session = NULL,          # Sesión Shiny (NULL = global)
+  filePath = "Datos_Ejemplo.xlsx",   # Archivo Excel a vigilar
+  readFunc = readxl::read_excel      # Función que lo lee
 )
-
 ```
 
 ## Row
@@ -34,11 +35,11 @@ remote_data <- reactiveFileReader(
 ### Categories {.value-box}
 
 ```{r}
-# Put valueBox() inside renderValueBox({})
+# valueBox reactivo: se recalcula cuando cambia el Excel
 renderValueBox({
-  df <- remote_data()
-  n_categories <- df %>% distinct(Category) %>% nrow()
-  valueBox(value = n_categories, icon = "fas fa-users")
+  df <- remote_data()                                      # Leer datos actualizados
+  n_categories <- df %>% distinct(Category) %>% nrow()     # Nº de categorías únicas
+  valueBox(value = n_categories, icon = "fas fa-users")    # Icono: usuarios
 })
 
 ```
@@ -46,11 +47,11 @@ renderValueBox({
 ### Total {.value-box}
 
 ```{r}
-# Put valueBox() inside renderValueBox({})
+# valueBox reactivo: suma total de Count
 renderValueBox({
-  df <- remote_data()
-  total <- sum(df$Count)
-  valueBox(value = total, icon = "fas fa-cubes")
+  df <- remote_data()                                      # Leer datos actualizados
+  total <- sum(df$Count)                                   # Suma total
+  valueBox(value = total, icon = "fas fa-cubes")           # Icono: cubos
 })
 
 ```
@@ -60,15 +61,17 @@ renderValueBox({
 ###
 
 ```{r}
-# Make a basic column plot
+# Gráfico de barras reactivo con Plotly
 renderPlotly({
-  df <- remote_data()
+  df <- remote_data()                                      # Datos actualizados
   plot_ly(df,
-          x = ~Category,
-          y = ~Count,
-          type = "bar",
-          text = ~paste("Categoría:", Category, "<br>Count:", Count),
-          hoverinfo = "text")
+          x = ~Category,                                   # Eje X
+          y = ~Count,                                      # Eje Y
+          type = "bar",                                    # Barras
+          text = ~paste("Categoría:", Category,            # Texto del hover
+                        "<br>Count:", Count),
+          hoverinfo = "text")                              # Mostrar solo el texto
 })
+
 
 ```

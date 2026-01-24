@@ -1,22 +1,24 @@
 ---
-title: "Value box & Gauges"
+title: "Value box & Gauges"       # Título del dashboard
 output: 
   flexdashboard::flex_dashboard:
-    orientation: rows
+    orientation: rows           # Organización por filas
 ---
 
 ```{r}
-library(DT)
-library(flexdashboard)
+```{r}
+library(DT)                                         # Tablas interactivas
+library(flexdashboard)                              # valueBox, gauge y layout
 ```
 
 
-Row
+Row           # Primera fila del dashboard
 -----------------------------------------------------------------------
 
 ### Articles per Day
 
 ```{r}
+# Caja de valor simple con icono
 articles <- 123
 valueBox(articles, icon = "fa-pencil")
 ```
@@ -25,57 +27,70 @@ valueBox(articles, icon = "fa-pencil")
 
 ```{r}
 comments <- 257
-valueBox(comments, icon = "fa-comments", color = "danger")
+valueBox(comments, icon = "fa-comments", color = "danger")   # Color rojo (danger)
 ```
 
 ### Spam per Day
 
 ```{r}
+# Caja con color dinámico
 spam <- 95
 valueBox(spam, 
          icon = "fa-trash",
-         color = ifelse(spam > 10, "warning", "primary"))
+         color = ifelse(spam > 10, "warning", "primary"))  # Lógica condicional
 ```
 
 
-Row 
+Row         # Segunda fila del dashboard
 -----------------------------------------------------------------------
 
 ### Contact Rate
 
 ```{r}
 rate <- 91
-gauge(rate, min = 0, max = 100, symbol = '%', gaugeSectors(
-  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
-))
+gauge(rate, min = 0, max = 100, symbol = '%',       # Indicador tipo gauge
+      gaugeSectors(
+        success = c(80, 100),                       # Verde
+        warning = c(40, 79),                        # naranja
+        danger = c(0, 39)                           # Rojo
+      ))
+
 ```
 
 ### Average Rating 
 
 ```{r}
 rating <- 37.4
-gauge(rating, min = 0, max = 50, gaugeSectors(
-  success = c(41, 50), warning = c(21, 40), danger = c(0, 20)
-))
+gauge(rating, min = 0, max = 50,                    # Gauge con otro rango
+      gaugeSectors(
+        success = c(41, 50),   # verde
+        warning = c(21, 40),   # naranja
+        danger = c(0, 20)      # rojo
+      ))
+
 ```
 
 ### Cancellations
 
 ```{r}
 cancellations <- 7
-gauge(cancellations, min = 0, max = 10, gaugeSectors(
-  success = c(0, 2), warning = c(3, 6), danger = c(7, 10)
-))
+gauge(cancellations, min = 0, max = 10,             # Gauge 
+      gaugeSectors(
+        success = c(0, 2),
+        warning = c(3, 6),
+        danger = c(7, 10)
+      ))
+
 ```
 
-Row
+Row       # Tercera fila del dashboard
 -------------------------------------
     
 ### Tabla con DT
     
 ```{r}
 DT::datatable(mtcars, options = list(
-  bPaginate = FALSE
+  bPaginate = FALSE     # Muestra todo sin paginación
 ))
 ```
     

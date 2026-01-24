@@ -1,7 +1,8 @@
 ---
-title: "Page Orientation"
-output: flexdashboard::flex_dashboard
+title: "Page Orientation"                     # Título del dashboard
+output: flexdashboard::flex_dashboard         # Salida en formato flexdashboard
 ---
+
 
 Page 1
 ===================================== 

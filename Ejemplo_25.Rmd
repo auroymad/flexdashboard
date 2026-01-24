@@ -1,23 +1,25 @@
 ---
-title: "Example dashboard with dynamic data"
+title: "Example dashboard with dynamic data"        # Título del dashboard
 output:
   flexdashboard::flex_dashboard:
-    orientation: rows
-    source_code: embed
-    theme: yeti
-runtime: shiny  # Make this use a Shiny backend
+    orientation: rows                               # Distribución por filas
+    source_code: embed                              # Botón para ver el código fuente
+    theme: yeti                                     # Tema visual (Bootswatch)
+runtime: shiny                                       # Backend reactivo con Shiny
 ---
 
 
 ```{r setup, include=FALSE}
-library(tidyverse)
-library(flexdashboard)
-library(plotly)
-library(readr)
+library(tidyverse)                                   # Manipulación de datos
+library(flexdashboard)                               # Componentes del dashboard
+library(plotly)                                      # Gráficos interactivos
+library(readr)                                       # Lectura de CSV
+
 ```
 
 ```{r get-data, message=FALSE, include=FALSE}
-remote_data <- read_csv("Datos_Ejemplo.csv")
+## Lectura de datos
+remote_data <- read_csv("Datos_Ejemplo.csv")  # Cargar datos externos
 ```
 
 ## Row
@@ -25,10 +27,10 @@ remote_data <- read_csv("Datos_Ejemplo.csv")
 ### Categories {.value-box}
 
 ```{r}
-# Find the number of unique categories
+# Número de categorías únicas
 n_categories <- remote_data %>% distinct(Category) %>% nrow()
 
-# Put valueBox() inside renderValueBox({})
+# valueBox reactivo (necesita renderValueBox)
 renderValueBox({
   valueBox(value = n_categories, icon = "fas fa-users")
 })
@@ -37,10 +39,10 @@ renderValueBox({
 ### Total {.value-box}
 
 ```{r}
-# Get a total of all the counts
+# Suma total de la columna Count
 total <- sum(remote_data$Count)
 
-# Put valueBox() inside renderValueBox({})
+# valueBox reactivo
 renderValueBox({
   valueBox(value = total, icon = "fas fa-cubes")
 })
@@ -51,13 +53,15 @@ renderValueBox({
 ###
 
 ```{r}
-# Make a basic column plot
+# Gráfico de barras interactivo con Plotly
 library(plotly)
 
 plot_ly(remote_data,
-        x = ~Category,
-        y = ~Count,
-        type = "bar",
-        text = ~paste("Categoría:", Category, "<br>Count:", Count),
-        hoverinfo = "text")
+        x = ~Category,                                    # Eje X: categorías
+        y = ~Count,                                       # Eje Y: valores
+        type = "bar",                                     # Gráfico de barras
+        text = ~paste("Categoría:", Category,             # Texto del hover
+                      "<br>Count:", Count),
+        hoverinfo = "text")                               # Mostrar solo el texto
+
 ```

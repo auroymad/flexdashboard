@@ -1,11 +1,11 @@
 ---
-title: "Row Orientation"
+title: "Row Orientation"    # Título del dashboard
 output: 
   flexdashboard::flex_dashboard:
-    orientation: rows
+    orientation: rows   # Organización por filas (row-wise)
 ---
     
-Row
+Row       # Primera fila del dashboard
 -------------------------------------
     
 ### Chart 1
@@ -14,7 +14,7 @@ Row
 
 ```
    
-Row
+Row       # Segunda fila del dashboard
 -------------------------------------
     
 ### Chart 2

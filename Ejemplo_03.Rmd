@@ -1,9 +1,9 @@
 ---
-title: "Multiple Columns"
-output: flexdashboard::flex_dashboard
+title: "Multiple Columns"   # Título del dashboard
+output: flexdashboard::flex_dashboard # Salida en formato flexdashboard
 ---
     
-Column {data-width=600}
+Column {data-width=600}     # Primera columna, más ancha (60% máximo 1000)
 -------------------------------------
     
 ### Chart 1
@@ -12,7 +12,7 @@ Column {data-width=600}
 
 ```
    
-Column {data-width=400}
+Column {data-width=400}   # segunda columna, más estecha (40% máximo 1000)
 -------------------------------------
    
 ### Chart 2

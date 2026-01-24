@@ -1,9 +1,10 @@
 ---
-title: "Multiple Pages"
-output: flexdashboard::flex_dashboard
+title: "Multiple Pages"                     # Título del dashboard
+output: flexdashboard::flex_dashboard       # Salida en formato flexdashboard
 ---
 
-Page 1
+
+Page 1            
 ===================================== 
     
 ### Chart 1.1
@@ -16,7 +17,7 @@ Page 1
 ```{r}
 ```
    
-Page 2
+Page 2    
 =====================================     
 
 ### Chart 2.1

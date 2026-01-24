@@ -1,24 +1,24 @@
 ---
-title: "Universidad de Alicante"
+title: "Universidad de Alicante"                     # Título del dashboard
 output: 
   flexdashboard::flex_dashboard:
-    logo: genaeio2.png    # logo en barra navegación
-    favicon: genaeio2.png  # logo en navegador
-    social: menu  # menú social links
-    source_code: embed  # añadir código
+    logo: genaeio2.png                                # Logo en la barra superior
+    favicon: genaeio2.png                             # Icono del navegador
+    social: menu                                      # Activa menú de enlaces sociales
+    source_code: embed                                # Botón para ver el código fuente
 ---
+
 
 ### Universidad de Alicante
 
 ```{r}
-library(leaflet)
+library(leaflet)                                      # Cargar leaflet para mapas interactivos
 
-leaflet() %>%
-  addTiles() %>%
-  setView(lng = -0.5125, lat = 38.3823, zoom = 18) %>%
-  addMarkers(lng = -0.5125, lat = 38.3823,
+leaflet() %>%                                         # Crear mapa vacío
+  addTiles() %>%                                      # Añadir capa base (OpenStreetMap)
+  setView(lng = -0.5125, lat = 38.3823, zoom = 18) %>%# Centrar vista en la UA (zoom alto)
+  addMarkers(lng = -0.5125, lat = 38.3823,            # Añadir marcador en el edificio
              popup = "Edificio Germán Bernàcer - Universidad de Alicante")
-
 
 ```
 

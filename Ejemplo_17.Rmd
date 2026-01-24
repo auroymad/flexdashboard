@@ -2,6 +2,6 @@
 title: "Logo and Favicon"
 output: 
   flexdashboard::flex_dashboard:
-    logo: genaeio2.png
-    favicon: genaeio2.png
+    logo: genaeio2.png        # Logo arriba a la izquierda
+    favicon: genaeio2.png     # Icono del navegador
 ---

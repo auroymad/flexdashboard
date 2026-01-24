@@ -1,29 +1,29 @@
 ---
-title: "Dygraphs"
+title: "Dygraphs"       # Título del dashboard
 output: 
   flexdashboard::flex_dashboard:
-    orientation: columns
+    orientation: columns        # Organización por columnas
 ---
 
 ```{r setup, include=FALSE}
-library(dygraphs)
-library(flexdashboard)
+library(dygraphs) # Cargamos dygraphs para series temporales interactivas 
+library(flexdashboard) # Cargamos flexdashboard para el layout
 ```
 
 ### Lung Deaths (All)
 
 ```{r}
-dygraph(ldeaths)
+dygraph(ldeaths)  # Serie temporal: muertes por enfermedad pulmonar (total)
 ```
 
 ### Lung Deaths (Male)
 
 ```{r}
-dygraph(mdeaths)
+dygraph(mdeaths)  # Serie temporal: muertes pulmonares en hombres
 ```
 
 ### Lung Deaths (Female)
 
 ```{r}
-dygraph(fdeaths)
+dygraph(fdeaths)  # Serie temporal: muertes pulmonares en mujeres
 ```

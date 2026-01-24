@@ -1,8 +1,8 @@
 ---
-title: "Single Column (Fill)"
+title: "Single Column (Fill)"    # Título del dashboard
 output: 
-  flexdashboard::flex_dashboard:
-    vertical_layout: fill
+  flexdashboard::flex_dashboard:    # Usamos flexdashboard
+    vertical_layout: fill   # La columna se expande verticalmente
 ---
 
 ### Chart 1

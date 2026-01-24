@@ -1,11 +1,11 @@
 ---
-title: "Tabset Row"
+title: "Tabset Row"       # Título del dashboard
 output: 
   flexdashboard::flex_dashboard:
-    orientation: rows
+    orientation: rows       # Organización por filas (row-wise)
 ---
 
-Row 
+Row         # Primera fila del dashboard
 -------------------------------------
     
 ### Chart 1
@@ -13,7 +13,7 @@ Row
 ```{r}
 ```
    
-Row {.tabset .tabset-fade}
+Row {.tabset .tabset-fade}        
 -------------------------------------
    
 ### Chart 2
