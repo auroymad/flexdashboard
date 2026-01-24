@@ -1,0 +1,714 @@
+---
+title: "Dashboard de Logs (Dinámico)"   # Título que aparece en la parte superior del dashboard
+
+output:
+  flexdashboard::flex_dashboard:        # Indicamos que el documento es un flexdashboard
+    orientation: rows                   # La estructura principal se organiza por filas (rows)
+    vertical_layout: fill               # Los gráficos se expanden verticalmente para ocupar el espacio disponible
+    source_code: embed                  # Muestra el código fuente dentro del dashboard (útil para talleres)
+
+runtime: shiny                          # Activa la interactividad: permite usar inputs, reactive(), renderPlot(), etc.
+
+resource_files:                         # Archivos adicionales que se empaquetan con el dashboard
+- Fechas_Clave.txt                      # Archivo de ejemplo con fechas clave
+- logs_curso.xlsx                       # Archivo de ejemplo con logs
+---
+
+
+```{r global_options, include=FALSE}
+# Aumentar límite de tamaño del archivo de subida.
+# Por defecto Shiny solo permite ~5 MB, así que lo ampliamos a 50 MB.
+options(shiny.maxRequestSize = 50*1024^2)  # 50 MB
+
+```
+
+
+```{r setup, include=FALSE}
+# Cargamos las librerías necesarias para el dashboard:
+
+library(flexdashboard)  # Estructura visual del dashboard
+library(readxl)         # Lectura de archivos Excel (.xlsx)
+library(tidyverse)      # Conjunto de paquetes para manipulación de datos
+library(lubridate)      # Manejo de fechas y horas
+library(shiny)          # Interactividad: inputs, reactive(), renderPlot(), etc.
+library(plotly)         # Gráficos interactivos (heatmap)
+
+
+```
+
+```{r ajustes_visuales, echo=FALSE}
+# CSS personalizado para evitar que el calendario del dateRangeInput
+# quede oculto detrás de la barra lateral.
+# z-index: asegura que el calendario se muestre por encima.
+# overflow: permite que el calendario se expanda fuera del panel lateral.
+
+tags$style(HTML("
+  .datepicker {
+    z-index: 9999 !important;   # Trae el calendario al frente
+  }
+  .sidebar {
+    overflow: visible !important;  # Permite que el calendario sobresalga
+  }
+"))
+
+
+```
+
+
+Controles {.sidebar}
+====================================
+
+```{r}
+fileInput("archivo", "Sube el archivo de logs (.xlsx o .csv)",   # Input para subir el archivo principal
+          accept = c(".xlsx", ".csv"))                           # Limitamos los formatos permitidos
+
+selectInput("alumno", "Selecciona un alumno:",                   # Selector de alumno
+            choices = NULL)                                      # Se rellenará dinámicamente tras cargar datos
+
+dateRangeInput("rango_fechas", "Selecciona rango de fechas:",    # Selector de rango de fechas
+               start = Sys.Date() - 30,                          # Valores iniciales genéricos
+               end   = Sys.Date(),
+               min   = Sys.Date() - 365,                         # Rango mínimo permitido
+               max   = Sys.Date())
+
+fileInput("archivo_fechas", "Sube archivo de fechas clave (.txt)", accept = ".txt")  # Archivo de fechas clave
+helpText("El archivo debe tener una sola columna, cada fila una fecha en formato YYYY-MM-DD.")  # Instrucción al usuario
+
+tableOutput("tabla_fechas_claves")                               # Tabla que mostrará las fechas clave cargadas
+
+```
+
+```{r}
+output$tabla_fechas_claves <- renderTable({                      # renderTable: genera una tabla reactiva
+  fc <- fechas_claves_visibles()                                 # Llama a la función reactiva que filtra fechas
+
+  if (length(fc) == 0) {                                         # Si no hay fechas en el rango seleccionado
+    tibble(Mensaje = "No hay fechas clave cargadas en el rango seleccionado")
+  } else {
+    tibble(`Fechas clave visibles` = format(fc, "%Y-%m-%d"))     # Si hay fechas, las mostramos formateadas
+  }
+})
+
+```
+
+
+```{r}
+datos <- reactive({                                      # reactive(): se recalcula cuando cambia input$archivo
+  req(input$archivo)                                     # req(): asegura que haya archivo antes de ejecutar el bloque
+
+  ext <- tools::file_ext(input$archivo$name)             # Detectamos la extensión del archivo (.xlsx o .csv)
+
+  df <- if (ext == "xlsx") {                             # Si es Excel...
+    readxl::read_excel(input$archivo$datapath)           # ...lo leemos con read_excel()
+  } else if (ext == "csv") {                             # Si es CSV...
+    readr::read_csv(input$archivo$datapath)              # ...lo leemos con read_csv()
+  } else {
+    validate("Formato de archivo no soportado. Usa .xlsx o .csv")  # Mensaje si el formato no es válido
+  }
+
+  # ---- Transformaciones de fecha y hora ----
+  df <- df %>%
+    mutate(
+      Hora_dt = as.POSIXct(Hora,                         # Convertimos la columna Hora (texto) a fecha-hora real
+                           format = "%d/%m/%y, %H:%M:%S",
+                           tz = "Europe/Madrid"),
+      Fecha   = as.Date(Hora_dt),                        # Extraemos solo la fecha
+      Hour    = lubridate::hour(Hora_dt),                # Extraemos la hora (0–23)
+      Weekday_num = lubridate::wday(Fecha, week_start = 1),  # Día de la semana (lunes=1)
+      Weekday = factor(Weekday_num,                      # Día de la semana como factor ordenado
+                       levels = 1:7,
+                       labels = c("Lun","Mar","Mie","Jue","Vie","Sab","Dom"),
+                       ordered = TRUE),
+      Origen = factor(Origen)                            # Convertimos Origen a factor
+    ) %>%
+    rename(                                               # Renombramos columnas para simplificar el código
+      hora            = Hora,
+      usuario         = `Nombre completo del usuario`,
+      usuario_afectado= `Usuario afectado`,
+      contexto        = `Contexto del evento`,
+      componente      = Componente,
+      evento          = `Nombre evento`,
+      descripcion     = Descripción,
+      origen          = Origen,
+      ip              = `Dirección IP`
+    )
+
+  df$usuario <- toupper(df$usuario)                      # Convertimos nombres a mayúsculas (evita duplicados)
+  df$usuario_afectado <- toupper(df$usuario_afectado)    # Igual para usuario_afectado
+
+  # ---- Lógica para identificar correctamente a los alumnos ----
+  # Moodle puede registrar alumnos de dos formas distintas:
+  # 1) En la columna "usuario"
+  # 2) En "usuario_afectado" cuando usuario == "-"
+
+  if ("Usuario matriculado en el curso" %in% unique(df$evento)) {  
+    # Caso 1: Moodle registra explícitamente la matrícula del alumno
+    alumnos <- df %>%
+      filter(evento == "Usuario matriculado en el curso",
+             usuario == usuario_afectado) %>%            # Coinciden usuario y usuario_afectado
+      distinct(usuario) %>%                              # Extraemos alumnos únicos
+      pull(usuario) %>%
+      sort()
+
+    df_filtrado <- df %>%                                # Filtramos solo los alumnos detectados
+      filter(usuario %in% alumnos)
+
+  } else {
+    # Caso 2: Lógica clásica (cuando Moodle usa usuario == "-" para eventos del sistema)
+    if (any(df$usuario == "-", na.rm = TRUE)) {          # Si hay filas con usuario == "-"
+      alumnos <- df %>%
+        filter(usuario == "-") %>%                       # Los alumnos están en usuario_afectado
+        distinct(usuario_afectado) %>%
+        pull(usuario_afectado) %>%
+        sort()
+
+      df_filtrado <- df %>%                              # Filtramos solo esos alumnos
+        filter(usuario %in% alumnos)
+
+    } else {
+      # Caso 3: Todos los alumnos están en la columna usuario
+      alumnos <- sort(unique(df$usuario))                # Lista ordenada alfabéticamente
+      df_filtrado <- df %>%                              # Filtramos solo esos alumnos
+        filter(usuario %in% alumnos)
+    }
+  }
+
+  df_filtrado                                             # Devolvemos el dataframe final
+})
+
+
+
+```
+
+```{r}
+fechas_claves_defecto <- as.Date(character())            # Vector vacío por si no hay archivo cargado
+
+fechas_claves <- reactive({                              # reactive(): se recalcula cuando cambia input$archivo_fechas
+  if (is.null(input$archivo_fechas)) return(as.Date(character()))  
+                                                          # Si no hay archivo, devolvemos vector vacío
+  
+  raw <- readr::read_lines(input$archivo_fechas$datapath) # Leemos el .txt línea por línea
+  
+  fechas <- as.Date(raw, format = "%Y-%m-%d")             # Convertimos cada línea a fecha
+  
+  fechas[!is.na(fechas)]                                  # Eliminamos líneas vacías o mal formateadas
+})
+
+
+
+fechas_claves_visibles <- reactive({                     # Fechas clave dentro del rango de fechas elegido
+  fechas_claves()[fechas_claves() >= input$rango_fechas[1] &
+                  fechas_claves() <= input$rango_fechas[2]]
+})
+
+
+```
+
+
+```{r}
+observe({                                                # observe(): ejecuta este bloque cada vez que cambia datos()
+  req(datos())                                           # Asegura que datos() existe
+  
+  alumnos <- sort(unique(datos()$usuario))               # Extraemos alumnos únicos y los ordenamos
+  
+  updateSelectInput(session, "alumno",                   # Actualizamos el selectInput de alumnos
+                    choices = alumnos,                   # Lista de alumnos
+                    selected = alumnos[1])               # Seleccionamos el primero (alfabéticamente)
+})
+
+```
+
+```{r}
+observe({
+  req(datos())                                           # Asegura que datos() existe
+  
+  min_fecha <- min(datos()$Fecha, na.rm = TRUE)          # Fecha mínima del archivo
+  max_fecha <- max(datos()$Fecha, na.rm = TRUE)          # Fecha máxima del archivo
+  
+  updateDateRangeInput(session, "rango_fechas",          # Actualizamos el selector de fechas
+                       start = min_fecha,                # Fecha inicial
+                       end   = max_fecha,                # Fecha final
+                       min   = min_fecha,                # Límite inferior permitido
+                       max   = max_fecha)                # Límite superior permitido
+})
+
+```
+
+
+```{r}
+datos_filtrados <- reactive({                               # reactive(): se recalcula cuando cambian alumno o fechas
+  req(datos())                                              # Asegura que datos() existe
+  
+  datos() %>%                                               # Partimos del dataframe ya procesado
+    filter(usuario == input$alumno,                         # Filtramos por alumno seleccionado
+           Fecha >= input$rango_fechas[1],                  # Filtramos por fecha inicial
+           Fecha <= input$rango_fechas[2])                  # Filtramos por fecha final
+})
+
+```
+
+# Métricas globales (comparativas)
+```{r}
+metrics_global <- reactive({                                # Cálculo global para todos los alumnos
+  req(datos(), input$rango_fechas)                          # Necesita datos y rango de fechas
+  
+  start <- input$rango_fechas[1]                            # Fecha inicial seleccionada
+  end   <- input$rango_fechas[2]                            # Fecha final seleccionada
+  
+  # Secuencia completa de fechas del intervalo
+  all_dates <- tibble(Fecha = seq.Date(start, end, by = "day"))
+  
+  max_dias <- nrow(all_dates)                               # Número total de días posibles
+  if (max_dias == 0) max_dias <- 1                          # Evita división por cero
+  
+  # Cálculo por alumno
+  dias_por_alumno <- datos() %>%                            # Usamos datos() sin filtrar por alumno
+    filter(Fecha >= start, Fecha <= end) %>%                # Filtramos por rango
+    group_by(usuario) %>%                                   # Agrupamos por alumno
+    summarise(
+      dias_distintos = n_distinct(Fecha),                   # Días en los que se conectó
+      clics = n(),                                          # Total de clics
+      .groups = "drop"
+    ) %>%
+    mutate(
+      pct_dias = dias_distintos / max_dias * 100,           # % de días activos
+      clics_por_dia = clics / pmax(dias_distintos, 1)       # Promedio de clics por día activo
+    )
+  
+  # Máximos globales (para gauges y comparaciones)
+  max_clics <- max(dias_por_alumno$clics, na.rm = TRUE)
+  max_clics_por_dia <- max(dias_por_alumno$clics_por_dia, na.rm = TRUE)
+  
+  dias_por_alumno <- dias_por_alumno %>%
+    mutate(
+      pct_clics = clics / max_clics * 100,                  # % relativo al máximo
+      pct_clics_por_dia = clics_por_dia / max_clics_por_dia * 100
+    )
+  
+  list(                                                     # Devolvemos una lista con todo lo necesario
+    dias_por_alumno = dias_por_alumno,
+    max_clics = max_clics,
+    max_clics_por_dia = max_clics_por_dia
+  )
+})
+
+
+# Métricas individuales (solo el alumno seleccionado)
+```{r}
+metrics <- reactive({                                       # Métricas del alumno seleccionado
+  req(datos_filtrados())                                    # Necesita datos filtrados
+  
+  datos_filtrados() %>%                                     # Partimos del dataframe filtrado
+    summarise(
+      dias_distintos = n_distinct(Fecha),                   # Días en los que se conectó
+      clics = n()                                           # Total de clics
+    ) %>%
+    mutate(
+      pct_dias = dias_distintos /
+                 as.integer(input$rango_fechas[2] - input$rango_fechas[1] + 1) * 100,
+      clics_por_dia = clics / pmax(dias_distintos, 1)       # Promedio de clics por día activo
+    )
+})
+
+```
+
+```{r}
+# Máximos para gráficos
+# 
+#     max_weekday() → máximo de clics por día de la semana.
+# 
+#     max_hour() → máximo de clics por hora. Estos se usan en scale_y_continuous(limits = ...) para fijar la escala.
+    
+# Máximo de clics por día de la semana entre todos los alumnos
+max_weekday <- reactive({
+  req(datos())
+  datos() %>%
+    count(usuario, Weekday) %>%
+    summarise(max_val = max(n, na.rm = TRUE)) %>%
+    pull(max_val)
+})
+
+# Máximo de clics por hora entre todos los alumnos
+max_hour <- reactive({
+  req(datos())
+  datos() %>%
+    count(usuario, Hour) %>%
+    summarise(max_val = max(n, na.rm = TRUE)) %>%
+    pull(max_val)
+})
+
+```
+
+
+Gráficos
+=========================
+
+row
+-----------------------------------------------------------------------
+
+### Días distintos de conexión {.value-box}
+
+```{r}
+renderValueBox({                                           # renderValueBox(): genera un valueBox reactivo
+  req(input$archivo)                                       # Evita errores si no hay archivo
+  
+  dias_por_alumno <- metrics_global()$dias_por_alumno      # Obtenemos métricas globales
+  
+  if (nrow(dias_por_alumno) == 0) {                        # Si no hay datos
+    return(valueBox(value = "Sin datos",
+                    caption = "Días distintos de conexión"))
+  }
+  
+  qs <- quantile(dias_por_alumno$dias_distintos,           # Cuartiles para colorear el valueBox
+                 probs = c(0.25, 0.5, 0.75),
+                 na.rm = TRUE)
+  
+  valor <- dias_por_alumno %>%                             # Valor del alumno seleccionado
+    filter(usuario == input$alumno) %>%
+    pull(dias_distintos)
+  
+  color <- if (valor < qs[1]) "red"                        # Color según cuartil
+           else if (valor < qs[2]) "orange"
+           else if (valor < qs[3]) "cyan"
+           else "green"
+  
+  valueBox(
+    value = valor,                                         # Número grande
+    caption = "Días distintos de conexión",                # Texto descriptivo
+    icon = "fa-calendar",                                  # Icono FontAwesome
+    color = color                                          # Color dinámico
+  )
+})
+
+```
+
+
+### % de días distintos {.gauge}
+```{r}
+renderGauge({                                              # renderGauge(): genera un gauge reactivo
+  req(input$archivo, input$rango_fechas)
+  
+  total_dias <- as.integer(input$rango_fechas[2] -         # Días posibles en el intervalo
+                           input$rango_fechas[1] + 1)
+  if (total_dias <= 0) total_dias <- 1
+  
+  dias_conectado <- datos_filtrados() %>%                  # Días en los que el alumno se conectó
+    summarise(dias = n_distinct(Fecha)) %>%
+    pull(dias)
+  
+  pct <- round(dias_conectado / total_dias * 100, 1)       # Porcentaje real
+  
+  gauge(
+    value = pct,                                            # Valor del gauge
+    min = 0, max = 100,                                     # Rango
+    symbol = "%",                                           # Añade el símbolo %
+    label = paste("días max", total_dias),                  # Texto debajo del gauge
+    gaugeSectors(                                           # Colores del gauge
+      success = c(75, 100),
+      warning = c(50, 75),
+      danger  = c(0, 50)
+    )
+  )
+})
+
+
+```
+
+### Número de clics {.value-box}
+```{r}
+renderValueBox({
+   req(input$archivo)  # evita errores si no hay archivo
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  
+  # Valor del alumno
+  valor <- dias_por_alumno %>%
+    filter(usuario == input$alumno) %>%
+    pull(clics)
+  
+  # Cuartiles dinámicos sobre todos los alumnos en el intervalo
+  qs <- quantile(dias_por_alumno$clics, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
+  
+  # Escala de colores
+  color <- if (valor < qs[1]) {
+    "red"
+  } else if (valor < qs[2]) {
+    "orange"
+  } else if (valor < qs[3]) {
+    "cyan"  
+  } else {
+    "green"
+  }
+  
+  
+  valueBox(
+    value = valor,
+    caption = "Número de clics",
+    icon = "fa-mouse-pointer",
+    color = color
+  )
+})
+
+
+```
+
+### % de clics {.gauge}
+
+```{r}
+renderGauge({
+   req(input$archivo)  # evita errores si no hay archivo
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  
+  valor <- dias_por_alumno %>%
+    filter(usuario == input$alumno) %>%
+    pull(pct_clics)
+  
+  max_val <- max(dias_por_alumno$pct_clics, na.rm = TRUE)
+  
+  gauge(
+    value = valor,
+    min = 0, max = 100,
+    label = "% sobre máximo",
+    gaugeSectors(
+      success = c(max_val*0.75, max_val),
+      warning = c(max_val*0.5, max_val*0.75),
+      danger  = c(0, max_val*0.5)
+    )
+  )
+})
+
+```
+
+### Promedio clics/día {.value-box}
+
+```{r}
+renderValueBox({
+   req(input$archivo)  # evita errores si no hay archivo
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  
+  valor <- dias_por_alumno %>%
+    filter(usuario == input$alumno) %>%
+    pull(clics_por_dia)
+  
+  qs <- quantile(dias_por_alumno$clics_por_dia, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
+  
+  # Escala de colores
+  color <- if (valor < qs[1]) {
+    "red"
+  } else if (valor < qs[2]) {
+    "orange"
+  } else if (valor < qs[3]) {
+    "cyan"  
+  } else {
+    "green"
+  }
+  
+  valueBox(
+    value = round(valor, 1),
+    caption = "Promedio clics por día",
+    icon = "fa-chart-line",
+    color = color
+  )
+})
+
+```
+
+
+### % promedio clics/día {.gauge}
+```{r}
+renderGauge({
+   req(input$archivo)  # evita errores si no hay archivo
+  dias_por_alumno <- metrics_global()$dias_por_alumno
+  
+  valor <- dias_por_alumno %>%
+    filter(usuario == input$alumno) %>%
+    pull(pct_clics_por_dia)
+  
+  max_val <- max(dias_por_alumno$pct_clics_por_dia, na.rm = TRUE)
+  
+  gauge(
+    value = valor,
+    min = 0, max = 100,
+    label = "% sobre máximo",
+    gaugeSectors(
+      success = c(max_val*0.75, max_val),
+      warning = c(max_val*0.5, max_val*0.75),
+      danger  = c(0, max_val*0.5)
+    )
+  )
+})
+
+```
+
+
+
+row
+-----------------------------------------------------------------------
+
+### Actividad
+
+```{r}
+renderPlot({
+  req(input$archivo, input$rango_fechas)
+  
+  all_dates <- tibble(Fecha = seq.Date(input$rango_fechas[1], 
+                                       input$rango_fechas[2], 
+                                       by = "day"))       # Secuencia completa de fechas
+  
+  clics_por_dia <- datos_filtrados() %>%                 # Contamos clics por día
+    count(Fecha)
+  
+  clics_por_dia <- all_dates %>%                         # Unimos con todas las fechas
+    left_join(clics_por_dia, by = "Fecha") %>%
+    mutate(n = replace_na(n, 0))                         # Reemplazamos NA por 0
+  
+  ggplot(clics_por_dia, aes(x = Fecha, y = n)) +
+    geom_col(fill = "steelblue") +                       # Barras de actividad
+    geom_vline(xintercept = fechas_claves_visibles(),    # Líneas rojas para fechas clave
+               color = "red", linetype = "dashed", linewidth = 1) +
+    theme_minimal() +
+    labs(title = paste("Número de clics por día -", input$alumno),
+         x = "Fecha", y = "Número de clics")
+})
+
+
+```
+
+
+
+
+
+Actividad
+==========================
+
+
+
+gráficos
+-----------------------------------------------------------------------
+
+### Clics por día de la semana  {.full}
+
+```{r}
+renderPlot({                                             # renderPlot(): genera un gráfico reactivo
+  req(input$archivo)                                     # Evita errores si no hay archivo cargado
+  
+  ggplot(datos_filtrados(), aes(x = Weekday)) +          # ggplot: eje X = día de la semana
+    geom_bar(fill = "steelblue") +                       # geom_bar(): cuenta clics automáticamente
+    scale_y_continuous(limits = c(0, max_weekday())) +   # Fijamos el máximo para comparar alumnos
+    theme_minimal() +                                    # Tema visual limpio
+    labs(title = paste("Clics por día de la semana -", input$alumno),
+         x = "Día", y = "Número de clics")
+})
+
+```
+
+### Mapa de Calor{.full}
+
+```{r}
+renderPlotly({                                           # renderPlotly(): gráfico interactivo
+  req(input$archivo)
+  
+  grid <- expand.grid(                                   # expand.grid(): crea todas las combinaciones posibles
+    Weekday = factor(c("Lun","Mar","Mie","Jue","Vie","Sab","Dom"),
+                     levels = c("Lun","Mar","Mie","Jue","Vie","Sab","Dom"),
+                     ordered = TRUE),
+    Hour = 0:23                                          # 24 horas del día
+  )
+  
+  datos_heatmap <- datos_filtrados() %>%                 # Contamos clics por día-hora
+    count(Weekday, Hour)
+  
+  datos_heatmap <- grid %>%                              # Unimos con grid para asegurar 168 casillas
+    left_join(datos_heatmap, by = c("Weekday","Hour")) %>%
+    mutate(n = replace_na(n, 0))                         # Reemplazamos NA por 0
+  
+  plot_ly(                                               # plot_ly(): crea el heatmap
+    data = datos_heatmap,
+    x = ~Weekday,                                        # Eje X: día
+    y = ~Hour,                                           # Eje Y: hora
+    z = ~n,                                              # Intensidad: número de clics
+    type = "heatmap",
+    colors = colorRamp(c("white","darkgreen"))           # Escala de colores
+  ) %>%
+    layout(
+      title = paste("Mapa de calor -", input$alumno),
+      xaxis = list(title = "Día de la semana"),
+      yaxis = list(title = "Hora del día", dtick = 1)
+    )
+})
+
+
+```
+
+
+### Clics por hora {.chart}
+
+```{r}
+renderPlot({
+  req(input$archivo)
+  
+  ggplot(datos_filtrados(), aes(x = Hour)) +             # Eje X: hora del día
+    geom_bar(fill = "darkorange") +                      # Conteo automático
+    scale_x_continuous(breaks = 0:23) +                  # Mostrar todas las horas
+    scale_y_continuous(limits = c(0, max_hour())) +      # Escala fija para comparar alumnos
+    theme_minimal() +
+    labs(title = paste("Clics por hora -", input$alumno),
+         x = "Hora del día", y = "Número de clics")
+})
+
+```
+
+
+
+
+```{r guia_buenas_practicas, echo=FALSE}
+
+# Esta sección resume las buenas prácticas aplicadas en el dashboard.
+# No afecta al funcionamiento, sirve como documentación interna.
+
+# 1. Lectura de archivos
+# - Usar tools::file_ext() para detectar extensión (.xlsx o .csv).
+# - readxl::read_excel() para Excel, readr::read_csv() para CSV.
+# - Aplicar transformaciones comunes (Hora → POSIXct, Fecha, Hour, Weekday).
+
+# 2. Filtrado de alumnos
+# - Si existen filas con usuario == "-", los alumnos están en usuario_afectado.
+# - Si no existen, los alumnos están directamente en usuario.
+# - Siempre ordenar alfabéticamente con sort() para consistencia.
+
+# 3. Controles dinámicos
+# - updateSelectInput() para actualizar lista de alumnos tras cargar archivo.
+# - selected = alumnos[1] asegura que el primero (alfabéticamente) se seleccione.
+# - updateDateRangeInput() para ajustar rango de fechas
+
+# 4. Protecciones contra errores
+# - req() asegura que haya archivo o entrada antes de calcular.
+# - validate() muestra mensaje si el formato no es soportado.
+# - if (nrow(...) == 0) devuelve “Sin datos” en valueBox/gauge.
+# - if (!is.finite(...)) protege contra max() = -Inf.
+
+# 5. Métricas
+# - metrics_global(): cálculos para todos los alumnos (comparaciones, cuartiles).
+# - metrics(): cálculos individuales del alumno seleccionado.
+# - Diferenciar entre valores absolutos y relativos (% sobre máximo).
+
+# 6. Visualización
+# - Usar scale_y_continuous(limits = c(0, max_val)) para fijar escalas.
+# - geom_vline() con linewidth en lugar de size (ggplot2 >= 3.4).
+# - Pasar fechas directamente a xintercept para evitar warnings.
+
+# 7. Gauges
+# - % de días distintos: total_dias = fecha_fin - fecha_ini + 1.
+# - Label dinámico: paste("días max", total_dias).
+# - Sectores: success (75-100), warning (50-75), danger (0-50).
+
+# 8. Estilo visual
+# - CSS con z-index y overflow para que el calendario no se tape.
+# - Ajustar tipografía en valueBox y gauge para mayor legibilidad.
+
+# 9. Documentación pedagógica
+# - Comentar cada bloque con qué hace y por qué.
+# - Mostrar cómo se depuran advertencias y errores.
+# - Explicar la diferencia entre métricas globales e individuales.
+
+```
+
